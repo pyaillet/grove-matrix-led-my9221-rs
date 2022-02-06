@@ -1,7 +1,13 @@
 [package]
-name = "my9221-rs"
+name = "grove-matrix-led-my9221-rs"
 version = "0.1.0"
+authors = ["pyaillet"]
 edition = "2021"
+categories = ["embedded", "hardware-support"]
+description = "Rust driver for Grove RGB Matrix Led with my-9221 Driver"
+repository = "https://github.com/pyaillet/grove-matrix-led-my9221-rs"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
