@@ -1,5 +1,8 @@
 #![feature(destructuring_assignment)]
 
+use std::thread;
+use std::time::Duration;
+
 use embedded_hal::blocking::i2c::{Read, Write};
 
 /// Default I2C Address for the grove matrix LED driver
@@ -344,14 +347,17 @@ where
         color: Colors,
     ) -> Result<(), My9221LedMatrixError> {
         let mut buf: [u8; 36] = [0; 36];
-        let len = if string.len() > 25 {
-            25u8
+        let len = if string.len() >= 28 {
+            28u8
         } else {
             string.len() as u8
         };
 
         for i in 0..len {
-            buf[(i + 6) as usize] = string.chars().nth(i as usize).unwrap() as u8;
+            buf[(i + 6) as usize] = match string.chars().nth(i as usize) {
+                Some(c) => c as u8,
+                None => 0,
+            };
         }
 
         buf[0] = I2cCmd::DispStr as u8;
@@ -361,9 +367,24 @@ where
         buf[4] = len;
         buf[5] = color as u8;
 
-        self.i2c
-            .write(self.address, &buf)
-            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        if len > 25 {
+            self.i2c
+                .write(self.address, &buf[0..31])
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+            thread::sleep(Duration::from_millis(1));
+            let mut buf2: [u8; 6] = [0; 6];
+            buf2[0] = I2cCmd::ContinueData as u8;
+            for i in 31..36 {
+                buf2[(i - 30) as usize] = buf[i as usize];
+            }
+            self.i2c
+                .write(self.address, &buf2)
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+        } else {
+            self.i2c
+                .write(self.address, &buf[0..(len + 6) as usize])
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+        }
         Ok(())
     }
 
