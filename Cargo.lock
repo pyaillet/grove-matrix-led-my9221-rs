@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "my9221-rs"
+name = "grove-matrix-led-my9221-rs"
 version = "0.1.0"
 dependencies = [
  "embedded-hal",
