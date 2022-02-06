@@ -8,6 +8,11 @@ use embedded_hal::blocking::i2c::{Read, Write};
 /// Default I2C Address for the grove matrix LED driver
 pub const DEFAULT_ADDRESS: u8 = 0x65;
 
+/// A struct representing a frame to display
+pub struct Frame {
+    pub data: [u8; 64],
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum I2cCmd {
     /// This command gets device ID information
@@ -20,13 +25,13 @@ pub enum I2cCmd {
     DispNum = 0x03,
     /// This command displays string
     DispStr = 0x04,
-    /// TODO: This command displays user-defined pictures
+    /// This command displays user-defined pictures
     DispCustom = 0x05,
     /// This command cleans the display
     DispOff = 0x06,
     /// not use
     DispAscii = 0x07,
-    /// TODO: This command displays pictures which are stored in flash
+    /// This command displays pictures which are stored in flash
     DispFlash = 0x08,
     /// This command displays colorful led bar
     DispColorBar = 0x09,
@@ -41,9 +46,9 @@ pub enum I2cCmd {
 
     ContinueData = 0x81,
 
-    /// TODO: This command stores frames in flash
+    /// This command stores frames in flash
     StoreFlash = 0xa0,
-    /// TODO: This command deletes all the frames in flash
+    /// This command deletes all the frames in flash
     DeleteFlash = 0xa1,
 
     /// This command turns on the indicator LED flash mode
@@ -129,6 +134,7 @@ pub struct My9221LedMatrix<I2C: Write> {
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum My9221LedMatrixError {
     I2CError,
+    InvalidArgument,
 }
 
 #[cfg(feature = "std")]
@@ -136,6 +142,7 @@ impl std::fmt::Display for My9221LedMatrixError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             My9221LedMatrixError::I2CError => write!(f, "I2C error"),
+            My9221LedMatrixError::InvalidArgument => write!(f, "Invalid argument"),
         }
     }
 }
@@ -531,6 +538,121 @@ where
         buf[4] = ((duration_time >> 8) & 0xff) as u8;
         buf[5] = if forever_flag { 0 } else { 1 };
 
+        self.i2c
+            .write(self.address, &buf)
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        Ok(())
+    }
+
+    pub fn display_frames(
+        &mut self,
+        frames: &[Frame],
+        duration_time: u16,
+        forever_flag: bool,
+        frames_number: u8,
+    ) -> Result<(), My9221LedMatrixError> {
+        let mut buf: [u8; 72] = [0; 72];
+
+        let frames_number = if frames_number > 5 {
+            5
+        } else if frames_number == 0 {
+            return Err(My9221LedMatrixError::InvalidArgument);
+        } else {
+            frames_number
+        };
+
+        buf[0] = I2cCmd::DispCustom as u8;
+        buf[1] = 0;
+        buf[2] = 0;
+        buf[3] = 0;
+        buf[4] = frames_number;
+
+        for i in (0..frames_number).rev() {
+            buf[5] = i;
+            for j in 0..64 {
+                buf[8 + j] = frames[i as usize].data[j];
+            }
+            if i == 0 {
+                buf[1] = (duration_time & 0xff) as u8;
+                buf[2] = ((duration_time >> 8) & 0xff) as u8;
+                buf[3] = if forever_flag { 0 } else { 1 };
+            }
+            self.i2c
+                .write(self.address, &buf[0..24])
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+            thread::sleep(Duration::from_millis(10));
+            let mut buf2: [u8; 25] = [0; 25];
+            buf2[0] = I2cCmd::ContinueData as u8;
+            for i in 0..24 {
+                buf2[i + 1] = buf[i + 24];
+            }
+            self.i2c
+                .write(self.address, &buf2)
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+            let mut buf2: [u8; 25] = [0; 25];
+            buf2[0] = I2cCmd::ContinueData as u8;
+            for i in 0..24 {
+                buf2[i + 1] = buf[i + 48];
+            }
+            self.i2c
+                .write(self.address, &buf2)
+                .map_err(|_| My9221LedMatrixError::I2CError)?;
+        }
+        Ok(())
+    }
+
+    /// Store frames to the internal buffer
+    pub fn store_frames(&mut self) -> Result<(), My9221LedMatrixError> {
+        self.i2c
+            .write(self.address, &[I2cCmd::StoreFlash as u8])
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        thread::sleep(Duration::from_millis(200));
+        Ok(())
+    }
+
+    /// Delete frames from the internal buffer
+    pub fn delete_frames(&mut self) -> Result<(), My9221LedMatrixError> {
+        self.i2c
+            .write(self.address, &[I2cCmd::DeleteFlash as u8])
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        thread::sleep(Duration::from_millis(200));
+        Ok(())
+    }
+
+    /// Display frames from the internal buffer
+    pub fn display_frames_from_flash(
+        &mut self,
+        duration_time: u16,
+        forever_flag: bool,
+        from_idx: u8,
+        to_idx: u8,
+    ) -> Result<(), My9221LedMatrixError> {
+        let from_idx = if from_idx > 5 {
+            5
+        } else if from_idx < 1 {
+            1
+        } else {
+            from_idx
+        };
+        let to_idx = if to_idx > 5 {
+            5
+        } else if to_idx < 1 {
+            1
+        } else {
+            to_idx
+        };
+        let (from_idx, to_idx) = if from_idx > to_idx {
+            (to_idx, from_idx)
+        } else {
+            (from_idx, to_idx)
+        };
+        let mut buf: [u8; 6] = [0; 6];
+        buf[0] = I2cCmd::DispFlash as u8;
+        buf[1] = (duration_time & 0xff) as u8;
+        buf[2] = ((duration_time >> 8) & 0xff) as u8;
+        buf[3] = if forever_flag { 0 } else { 1 };
+        buf[4] = from_idx;
+        buf[5] = to_idx;
         self.i2c
             .write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;

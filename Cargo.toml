@@ -1,6 +1,6 @@
 [package]
 name = "grove-matrix-led-my9221-rs"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["pyaillet"]
 edition = "2021"
 categories = ["embedded", "hardware-support"]
