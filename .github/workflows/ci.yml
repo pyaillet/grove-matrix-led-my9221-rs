@@ -1,0 +1,48 @@
+name: Continuous integration
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: Release build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          toolchain: nightly
+          args: --release --all-features
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Nightly with clippy
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: clippy
+      - name: Annotate commit with clippy warnings
+        uses: actions-rs/clippy-check@v1
+        with:
+          toolchain: nightly
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: Security audit
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
