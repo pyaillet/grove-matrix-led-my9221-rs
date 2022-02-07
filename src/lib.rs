@@ -617,9 +617,7 @@ where
 
         for i in (0..frames_number).rev() {
             buf[5] = i;
-            for j in 0..64 {
-                buf[8 + j] = frames[i as usize].data[j];
-            }
+            buf[8..(64 + 8)].copy_from_slice(&frames[i as usize].data[..64]);
             if i == 0 {
                 buf[1] = (duration_time & 0xff) as u8;
                 buf[2] = ((duration_time >> 8) & 0xff) as u8;
@@ -631,17 +629,13 @@ where
             self.delay.delay_ms(10);
             let mut buf2: [u8; 25] = [0; 25];
             buf2[0] = I2cCmd::ContinueData as u8;
-            for i in 0..24 {
-                buf2[i + 1] = buf[i + 24];
-            }
+            buf2[1..(24 + 1)].copy_from_slice(&buf[24..(24 + 24)]);
             self.i2c
                 .write(self.address, &buf2)
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
             let mut buf2: [u8; 25] = [0; 25];
             buf2[0] = I2cCmd::ContinueData as u8;
-            for i in 0..24 {
-                buf2[i + 1] = buf[i + 48];
-            }
+            buf2[1..(24 + 1)].copy_from_slice(&buf[48..(24 + 48)]);
             self.i2c
                 .write(self.address, &buf2)
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
