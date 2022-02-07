@@ -1,9 +1,10 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #![feature(destructuring_assignment)]
 
-use std::thread;
-use std::time::Duration;
-
-use embedded_hal::blocking::i2c::{Read, Write};
+use embedded_hal::blocking::{
+    delay::DelayMs,
+    i2c::{Read, Write},
+};
 
 /// Default I2C Address for the grove matrix LED driver
 pub const DEFAULT_ADDRESS: u8 = 0x65;
@@ -11,6 +12,23 @@ pub const DEFAULT_ADDRESS: u8 = 0x65;
 /// A struct representing a frame to display
 pub struct Frame {
     pub data: [u8; 64],
+}
+
+#[cfg(feature = "std")]
+mod delay {
+    use std::thread;
+    use std::time::Duration;
+
+    use embedded_hal::blocking::delay::DelayMs;
+
+    /// Default delay provided for std feature
+    pub struct DelayThreadSleep;
+
+    impl DelayMs<u64> for DelayThreadSleep {
+        fn delay_ms(&mut self, ms: u64) {
+            thread::sleep(Duration::from_millis(ms.into()));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,9 +144,10 @@ pub enum Colors {
 }
 
 /// The grove matrix LED driver
-pub struct My9221LedMatrix<I2C: Write> {
+pub struct My9221LedMatrix<I2C, D> {
     address: u8,
     i2c: I2C,
+    delay: D,
 }
 
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -150,7 +169,8 @@ impl std::fmt::Display for My9221LedMatrixError {
 #[cfg(feature = "std")]
 impl std::error::Error for My9221LedMatrixError {}
 
-impl<I2C> My9221LedMatrix<I2C>
+#[cfg(feature = "std")]
+impl<I2C> My9221LedMatrix<I2C, delay::DelayThreadSleep>
 where
     I2C: Write + Read,
 {
@@ -161,8 +181,36 @@ where
     /// * `i2c` - The I2C peripheral to use
     /// * `address` - The I2C address to use (default is 0x65)
     ///
+    #[cfg(feature = "std")]
     pub fn new(address: u8, i2c: I2C) -> Self {
-        Self { address, i2c }
+        Self {
+            address,
+            i2c,
+            delay: delay::DelayThreadSleep {},
+        }
+    }
+}
+
+impl<I2C, D> My9221LedMatrix<I2C, D>
+where
+    I2C: Write + Read,
+    D: DelayMs<u64>,
+{
+    /// Create a new instance of the grove matrix LED driver
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `address` - The I2C address to use (default is 0x65)
+    /// * `delay` - The delay provideder to use when "no_std"
+    ///
+    #[cfg(not(feature = "std"))]
+    pub fn new(address: u8, i2c: I2C, delay: D) -> Self {
+        Self {
+            address,
+            i2c,
+            delay,
+        }
     }
 
     /// Rotate the display
@@ -378,7 +426,7 @@ where
             self.i2c
                 .write(self.address, &buf[0..31])
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
-            thread::sleep(Duration::from_millis(1));
+            self.delay.delay_ms(1);
             let mut buf2: [u8; 6] = [0; 6];
             buf2[0] = I2cCmd::ContinueData as u8;
             for i in 31..36 {
@@ -580,7 +628,7 @@ where
             self.i2c
                 .write(self.address, &buf[0..24])
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
-            thread::sleep(Duration::from_millis(10));
+            self.delay.delay_ms(10);
             let mut buf2: [u8; 25] = [0; 25];
             buf2[0] = I2cCmd::ContinueData as u8;
             for i in 0..24 {
@@ -606,7 +654,7 @@ where
         self.i2c
             .write(self.address, &[I2cCmd::StoreFlash as u8])
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        thread::sleep(Duration::from_millis(200));
+        self.delay.delay_ms(200);
         Ok(())
     }
 
@@ -615,7 +663,7 @@ where
         self.i2c
             .write(self.address, &[I2cCmd::DeleteFlash as u8])
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        thread::sleep(Duration::from_millis(200));
+        self.delay.delay_ms(200);
         Ok(())
     }
 
