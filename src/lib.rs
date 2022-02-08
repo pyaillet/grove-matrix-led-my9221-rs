@@ -24,8 +24,8 @@ mod delay {
     /// Default delay provided for std feature
     pub struct DelayThreadSleep;
 
-    impl DelayMs<u64> for DelayThreadSleep {
-        fn delay_ms(&mut self, ms: u64) {
+    impl DelayMs<T: Into<u32>> for DelayThreadSleep {
+        fn delay_ms(&mut self, ms: T) {
             thread::sleep(Duration::from_millis(ms.into()));
         }
     }
@@ -194,7 +194,7 @@ where
 impl<I2C, D> My9221LedMatrix<I2C, D>
 where
     I2C: Write + Read,
-    D: DelayMs<u64>,
+    D: DelayMs<u32>,
 {
     /// Create a new instance of the grove matrix LED driver
     ///
@@ -211,6 +211,16 @@ where
             i2c,
             delay,
         }
+    }
+
+    /// Delay the execution for the specified number of milliseconds
+    ///
+    /// # Arguments
+    ///
+    /// * `ms` - The number of milliseconds to delay
+    ///
+    pub fn delay_ms(&mut self, ms: u32) {
+        self.delay.delay_ms(ms);
     }
 
     /// Rotate the display
