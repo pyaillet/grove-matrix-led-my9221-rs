@@ -44,17 +44,15 @@ fn main() -> ! {
 
     let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
 
-    let mut led_matrix = grove_matrix_led_my9221_rs::My9221LedMatrix::new(
-        grove_matrix_led_my9221_rs::DEFAULT_ADDRESS,
-    );
+    let mut led_matrix = grove_matrix_led_my9221_rs::My9221LedMatrix::default();
 
-    let mut emoji_num = 0;
+    let mut emoji = grove_matrix_led_my9221_rs::Emojis::Smiley;
 
     const DELAY: u16 = 5_000u16;
 
     loop {
-        led_matrix.display_emoji(&mut i2c, emoji_num, DELAY, true);
+        led_matrix.display_emoji(&mut i2c, emoji, DELAY, true);
         delay.delay_ms(DELAY);
-        emoji_num = (emoji_num + 1) % 32;
+        emoji = emoji.next().expect("There should always be a next emoji");
     }
 }

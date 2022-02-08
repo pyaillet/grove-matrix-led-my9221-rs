@@ -1,3 +1,26 @@
+//! This crate provides a simple driver for the
+//! [Grove Matrix LED my-9221](https://www.seeedstudio.com/Grove-RGB-LED-Matrix-w-Driver.html)
+//!
+//! # Example
+//!
+//! ```rust
+//!    use grove_matrix_led_my9221_rs::GroveMatrixLedMy9221;
+//!
+//!    fn main() {
+//!        let mut led_matrix = grove_matrix_led_my9221_rs::My9221LedMatrix::default();
+//!
+//!        let mut emoji_num = 0;
+//!
+//!        const DELAY: u16 = 5_000u16;
+//!
+//!        loop {
+//!            led_matrix.display_emoji(&mut i2c, emoji_num, DELAY, true);
+//!            delay.delay_ms(DELAY);
+//!            emoji_num = (emoji_num + 1) % 32;
+//!        }
+//!    }
+//!
+//! ```
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(destructuring_assignment)]
 
@@ -6,15 +29,18 @@ use embedded_hal::blocking::{
     i2c::{Read, Write},
 };
 
+mod emojis;
+
+pub use emojis::*;
+
 /// Default I2C Address for the grove matrix LED driver
-pub const DEFAULT_ADDRESS: u8 = 0x65;
+const DEFAULT_ADDRESS: u8 = 0x65;
 
 /// A struct representing a frame to display
 pub struct Frame {
     pub data: [u8; 64],
 }
 
-#[derive(Debug, Clone, Copy)]
 enum I2cCmd {
     /// This command gets device ID information
     GetDevID = 0x00,
@@ -66,9 +92,9 @@ enum I2cCmd {
     /// This command setting the display offset
     DispOffset = 0xb5,
 
-    /// TODO: This command sets device i2c address
+    /// This command sets device i2c address
     SetAddress = 0xc0,
-    /// TODO: This command resets device i2c address
+    /// This command resets device i2c address
     ResetAddress = 0xc1,
     /// This command enable TX RX pin test mode
     TestTXRXOn = 0xe0,
@@ -80,6 +106,7 @@ enum I2cCmd {
     GetDeviceUID = 0xf1,
 }
 
+/// An enum representing the possible rotations of the display
 #[derive(Debug, Clone, Copy)]
 pub enum DisplayRotate {
     /// No rotation
@@ -92,6 +119,7 @@ pub enum DisplayRotate {
     Deg270 = 3,
 }
 
+/// An enum representing the animations available in the module
 #[derive(Debug, Clone, Copy)]
 pub enum ColorAnimation {
     BigClockWise = 0,
@@ -102,6 +130,8 @@ pub enum ColorAnimation {
     BrokenHeart = 5,
 }
 
+/// An enum representing the colors available in the module and their
+/// corresponding values
 #[derive(Debug, Clone, Copy)]
 pub enum Colors {
     /// Red
@@ -131,6 +161,8 @@ pub struct My9221LedMatrix {
     address: u8,
 }
 
+/// The specific errors that can occur when communicating with the device
+/// or when using the driver
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum My9221LedMatrixError {
     I2CError,
@@ -150,6 +182,17 @@ impl std::fmt::Display for My9221LedMatrixError {
 #[cfg(feature = "std")]
 impl std::error::Error for My9221LedMatrixError {}
 
+impl Default for My9221LedMatrix {
+    /// Create a new instance of the grove matrix LED driver using the default
+    /// I2C address
+    fn default() -> Self {
+        Self {
+            address: DEFAULT_ADDRESS,
+        }
+    }
+}
+
+/// All the methods available to the user to interact with the device
 impl My9221LedMatrix {
     /// Create a new instance of the grove matrix LED driver
     ///
@@ -160,6 +203,28 @@ impl My9221LedMatrix {
     #[cfg(not(feature = "std"))]
     pub fn new(address: u8) -> Self {
         Self { address }
+    }
+
+    /// Get the device ID information
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    /// # Returns
+    ///
+    /// * `Result<u8, My9221LedMatrixError>` - Returns the device ID
+    ///
+    pub fn get_device_id<I2C, E>(&self, i2c: &mut I2C) -> Result<u8, My9221LedMatrixError>
+    where
+        I2C: Write + Read,
+    {
+        let mut buf = [0u8; 1];
+        i2c.write(self.address, &[I2cCmd::GetDevID as u8])
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        i2c.read(self.address, &mut buf)
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        Ok(buf[0])
     }
 
     /// Rotate the display
@@ -342,7 +407,7 @@ impl My9221LedMatrix {
     pub fn display_emoji<I2C>(
         &self,
         i2c: &mut I2C,
-        emoji: u8,
+        emoji: Emojis,
         duration_time: u16,
         forever_flag: bool,
     ) -> Result<(), My9221LedMatrixError>
@@ -351,7 +416,7 @@ impl My9221LedMatrix {
     {
         let mut buf = [0; 5];
         buf[0] = I2cCmd::DispEmoji as u8;
-        buf[1] = emoji;
+        buf[1] = emoji as u8;
         buf[2] = (duration_time & 0xff) as u8;
         buf[3] = ((duration_time >> 8) & 0xff) as u8;
         buf[4] = if forever_flag { 1 } else { 0 };
@@ -843,6 +908,10 @@ impl My9221LedMatrix {
     ///
     /// * `i2c` - The I2C peripheral to use
     ///
+    /// # Returns
+    ///
+    /// * `Result<u8, My9221LedMatrixError>` - Returns the device version
+    ///
     pub fn test_get_version<I2C>(&self, i2c: &mut I2C) -> Result<u32, My9221LedMatrixError>
     where
         I2C: Write + Read,
@@ -860,13 +929,17 @@ impl My9221LedMatrix {
         Ok((buf[0] as u32) << 24 | (buf[1] as u32) << 16 | (buf[2] as u32) << 8 | (buf[3] as u32))
     }
 
-    /// Get the device ID
+    /// Get the device UID
     ///
     /// # Arguments
     ///
     /// * `i2c` - The I2C peripheral to use
     ///
-    pub fn get_device_id<I2C>(&self, i2c: &mut I2C) -> Result<u8, My9221LedMatrixError>
+    /// # Returns
+    ///
+    /// * `Result<u8, My9221LedMatrixError>` - Returns the device UID
+    ///
+    pub fn get_device_uid<I2C>(&self, i2c: &mut I2C) -> Result<u8, My9221LedMatrixError>
     where
         I2C: Write + Read,
     {
@@ -881,5 +954,51 @@ impl My9221LedMatrix {
             .map_err(|_| My9221LedMatrixError::I2CError)?;
 
         Ok(buf[0])
+    }
+
+    /// Set the address of the device
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `address` - The new address of the device
+    ///
+    pub fn set_address<I2C>(
+        &mut self,
+        i2c: &mut I2C,
+        address: u8,
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
+        let mut buf: [u8; 2] = [0; 2];
+
+        buf[0] = I2cCmd::SetAddress as u8;
+        buf[1] = address;
+
+        i2c.write(self.address, &buf)
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        self.address = address;
+        Ok(())
+    }
+
+    /// Reset the address of the device
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn reset_address<I2C>(&mut self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
+        let mut buf: [u8; 1] = [0; 1];
+
+        buf[0] = I2cCmd::ResetAddress as u8;
+
+        i2c.write(self.address, &buf)
+            .map_err(|_| My9221LedMatrixError::I2CError)?;
+        self.address = DEFAULT_ADDRESS;
+        Ok(())
     }
 }
