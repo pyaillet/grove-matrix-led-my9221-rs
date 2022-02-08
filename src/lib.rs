@@ -21,16 +21,6 @@
 //!    }
 //!
 //! ```
-//!
-//! # Result
-//!
-//!
-//! A simple smiley:
-//! ![Smiley fixed image](assets/Smiley.jpg)
-//!
-//! Picture changing:
-//! ![Creepers](assets/Creepers.gif)
-//!
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(destructuring_assignment)]
 
