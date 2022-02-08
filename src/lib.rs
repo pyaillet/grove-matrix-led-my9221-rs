@@ -14,28 +14,8 @@ pub struct Frame {
     pub data: [u8; 64],
 }
 
-#[cfg(feature = "std")]
-mod delay {
-    use std::thread;
-    use std::time::Duration;
-
-    use embedded_hal::blocking::delay::DelayMs;
-
-    /// Default delay provided for std feature
-    pub struct DelayThreadSleep;
-
-    impl<UXX> DelayMs<UXX> for DelayThreadSleep
-    where
-        UXX: Into<u64>,
-    {
-        fn delay_ms(&mut self, ms: UXX) {
-            thread::sleep(Duration::from_millis(ms.into()));
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
-pub enum I2cCmd {
+enum I2cCmd {
     /// This command gets device ID information
     GetDevID = 0x00,
     /// This command displays LED bar
@@ -147,10 +127,8 @@ pub enum Colors {
 }
 
 /// The grove matrix LED driver
-pub struct My9221LedMatrix<I2C, D> {
+pub struct My9221LedMatrix {
     address: u8,
-    i2c: I2C,
-    delay: D,
 }
 
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -172,85 +150,54 @@ impl std::fmt::Display for My9221LedMatrixError {
 #[cfg(feature = "std")]
 impl std::error::Error for My9221LedMatrixError {}
 
-#[cfg(feature = "std")]
-impl<I2C> My9221LedMatrix<I2C, delay::DelayThreadSleep>
-where
-    I2C: Write + Read,
-{
+impl My9221LedMatrix {
     /// Create a new instance of the grove matrix LED driver
     ///
     /// # Arguments
     ///
-    /// * `i2c` - The I2C peripheral to use
     /// * `address` - The I2C address to use (default is 0x65)
-    ///
-    #[cfg(feature = "std")]
-    pub fn new(address: u8, i2c: I2C) -> Self {
-        Self {
-            address,
-            i2c,
-            delay: delay::DelayThreadSleep {},
-        }
-    }
-}
-
-impl<I2C, D> My9221LedMatrix<I2C, D>
-where
-    I2C: Write + Read,
-    D: DelayMs<u32>,
-{
-    /// Create a new instance of the grove matrix LED driver
-    ///
-    /// # Arguments
-    ///
-    /// * `i2c` - The I2C peripheral to use
-    /// * `address` - The I2C address to use (default is 0x65)
-    /// * `delay` - The delay provideder to use when "no_std"
     ///
     #[cfg(not(feature = "std"))]
-    pub fn new(address: u8, i2c: I2C, delay: D) -> Self {
-        Self {
-            address,
-            i2c,
-            delay,
-        }
-    }
-
-    /// Delay the execution for the specified number of milliseconds
-    ///
-    /// # Arguments
-    ///
-    /// * `ms` - The number of milliseconds to delay
-    ///
-    pub fn delay_ms(&mut self, ms: u32) {
-        self.delay.delay_ms(ms);
+    pub fn new(address: u8) -> Self {
+        Self { address }
     }
 
     /// Rotate the display
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `rotate` - The display orientation
     ///
-    pub fn set_led_matrix_rotate(
-        &mut self,
+    pub fn set_led_matrix_rotate<I2C>(
+        &self,
+        i2c: &mut I2C,
         rotate: DisplayRotate,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 2];
         buf[0] = I2cCmd::DispRotate as u8;
         buf[1] = rotate as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Stop the display
-    pub fn stop_display(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn stop_display<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 1];
         buf[0] = I2cCmd::DispOff as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -259,55 +206,90 @@ where
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `offset` - The display offset (x, y)
     ///
-    pub fn set_led_matrix_offset(&mut self, offset: (u8, u8)) -> Result<(), My9221LedMatrixError> {
+    pub fn set_led_matrix_offset<I2C>(
+        &self,
+        i2c: &mut I2C,
+        offset: (u8, u8),
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 3];
         buf[0] = I2cCmd::DispOffset as u8;
         buf[1] = offset.0;
         buf[2] = offset.1;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Turn on the display
-    pub fn turn_on_led_flash(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn turn_on_led_flash<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 1];
         buf[0] = I2cCmd::LedOn as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Turn off the display
-    pub fn turn_off_led_flash(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn turn_off_led_flash<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 1];
         buf[0] = I2cCmd::LedOff as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Enable auto sleep mode
-    pub fn enable_auto_sleep(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn enable_auto_sleep<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 1];
         buf[0] = I2cCmd::AutoSleepOn as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Disable auto sleep mode
-    pub fn disable_auto_sleep(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///     
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn disable_auto_sleep<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 1];
         buf[0] = I2cCmd::AutoSleepOff as u8;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -317,17 +299,23 @@ where
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `bar` - The bar to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
     /// * `color` - The color of the bar
-    pub fn display_bar(
-        &mut self,
+    ///
+    pub fn display_bar<I2C>(
+        &self,
+        i2c: &mut I2C,
         bar: u8,
         duration_time: u16,
         forever_flag: bool,
         color: Colors,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 6];
         buf[0] = I2cCmd::DispBar as u8;
         buf[1] = if bar <= 32 { bar } else { 32 };
@@ -336,8 +324,7 @@ where
         buf[4] = if forever_flag { 1 } else { 0 };
         buf[5] = color as u8;
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -347,15 +334,21 @@ where
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `emoji` - The emoji to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_emoji(
-        &mut self,
+    ///
+    pub fn display_emoji<I2C>(
+        &self,
+        i2c: &mut I2C,
         emoji: u8,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 5];
         buf[0] = I2cCmd::DispEmoji as u8;
         buf[1] = emoji;
@@ -363,8 +356,7 @@ where
         buf[3] = ((duration_time >> 8) & 0xff) as u8;
         buf[4] = if forever_flag { 1 } else { 0 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -374,17 +366,23 @@ where
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `number` - The number to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
     /// * `color` - The color of the number
-    pub fn display_number(
-        &mut self,
+    ///
+    pub fn display_number<I2C>(
+        &self,
+        i2c: &mut I2C,
         number: u16,
         duration_time: u16,
         forever_flag: bool,
         color: Colors,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf = [0; 7];
         buf[0] = I2cCmd::DispNum as u8;
         buf[1] = (number & 0xff) as u8;
@@ -394,8 +392,7 @@ where
         buf[5] = if forever_flag { 1 } else { 0 };
         buf[6] = color as u8;
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -403,17 +400,27 @@ where
     /// Display a string
     ///
     /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `delay` - A delay provider
     /// * `string` - The string to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
     /// * `color` - The color of the string
-    pub fn display_string(
-        &mut self,
+    ///
+    pub fn display_string<I2C, D, T>(
+        &self,
+        i2c: &mut I2C,
+        delay: &mut D,
         string: &str,
         duration_time: u16,
         forever_flag: bool,
         color: Colors,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+        D: DelayMs<u32>,
+    {
         let mut buf: [u8; 36] = [0; 36];
         let len = if string.len() >= 28 {
             28u8
@@ -436,21 +443,18 @@ where
         buf[5] = color as u8;
 
         if len > 25 {
-            self.i2c
-                .write(self.address, &buf[0..31])
+            i2c.write(self.address, &buf[0..31])
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
-            self.delay.delay_ms(1);
+            delay.delay_ms(1);
             let mut buf2: [u8; 6] = [0; 6];
             buf2[0] = I2cCmd::ContinueData as u8;
             for i in 31..36 {
                 buf2[(i - 30) as usize] = buf[i as usize];
             }
-            self.i2c
-                .write(self.address, &buf2)
+            i2c.write(self.address, &buf2)
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
         } else {
-            self.i2c
-                .write(self.address, &buf[0..(len + 6) as usize])
+            i2c.write(self.address, &buf[0..(len + 6) as usize])
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
         }
         Ok(())
@@ -459,15 +463,22 @@ where
     /// Display a color block
     ///
     /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `rgb` - The color to display in RGB format (0x00RRGGBB)
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_color_block(
-        &mut self,
+    ///
+    pub fn display_color_block<I2C>(
+        &self,
+        i2c: &mut I2C,
         rgb: u32,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 7] = [0; 7];
 
         buf[0] = I2cCmd::DispColorBlock as u8;
@@ -478,8 +489,7 @@ where
         buf[5] = ((duration_time >> 8) & 0xff) as u8;
         buf[6] = if forever_flag { 0 } else { 1 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -487,15 +497,22 @@ where
     /// Display a color bar
     ///
     /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `bar` - the color bar to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_color_bar(
-        &mut self,
+    ///
+    pub fn display_color_bar<I2C>(
+        &self,
+        i2c: &mut I2C,
         bar: u8,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 5] = [0; 5];
 
         buf[0] = I2cCmd::DispColorBar as u8;
@@ -504,8 +521,7 @@ where
         buf[3] = ((duration_time >> 8) & 0xff) as u8;
         buf[4] = if forever_flag { 0 } else { 1 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -513,15 +529,22 @@ where
     /// Display a color wave
     ///
     /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `wave` - the color wave to display
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_color_wave(
-        &mut self,
+    ///
+    pub fn display_color_wave<I2C>(
+        &self,
+        i2c: &mut I2C,
         wave: u8,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 5] = [0; 5];
 
         buf[0] = I2cCmd::DispColorWave as u8;
@@ -530,8 +553,7 @@ where
         buf[3] = ((duration_time >> 8) & 0xff) as u8;
         buf[4] = if forever_flag { 0 } else { 1 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -540,17 +562,23 @@ where
     ///
     /// # Arguments
     ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `clockwise` - If true, the color will be displayed clockwise, if false, anti-clockwise
     /// * `big` - If true, the color clockwise will be displayed in big size, if false, small size
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_color_clockwise(
-        &mut self,
+    ///
+    pub fn display_color_clockwise<I2C>(
+        &self,
+        i2c: &mut I2C,
         clockwise: bool,
         big: bool,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 6] = [0; 6];
 
         buf[0] = I2cCmd::DispColorClockWise as u8;
@@ -560,8 +588,7 @@ where
         buf[4] = ((duration_time >> 8) & 0xff) as u8;
         buf[5] = if forever_flag { 0 } else { 1 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
@@ -569,6 +596,8 @@ where
     /// Display a color animation
     ///
     /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
     /// * `animation` - The animation to display
     ///   - `ColorAnimation::BigClockWise`
     ///   - `ColorAnimation::SmallClockWise`
@@ -578,12 +607,17 @@ where
     ///   - `ColorAnimation::BrokenHeart`
     /// * `duration_time` - The duration time of the bar
     /// * `forever_flag` - If true, the bar will be displayed forever
-    pub fn display_color_animation(
-        &mut self,
+    ///
+    pub fn display_color_animation<I2C>(
+        &self,
+        i2c: &mut I2C,
         animation_index: ColorAnimation,
         duration_time: u16,
         forever_flag: bool,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 6] = [0; 6];
 
         buf[0] = I2cCmd::DispColorAnimation as u8;
@@ -599,19 +633,35 @@ where
         buf[4] = ((duration_time >> 8) & 0xff) as u8;
         buf[5] = if forever_flag { 0 } else { 1 };
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
-    pub fn display_frames(
-        &mut self,
+    /// Display the frame
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `delay` - A delay provider
+    /// * `frames` - The frames to display
+    /// * `duration_time` - The duration time of the bar
+    /// * `forever_flag` - If true, the bar will be displayed forever
+    /// * `frame_number` - The total number of frames
+    ///
+    pub fn display_frames<I2C, D>(
+        &self,
+        i2c: &mut I2C,
+        delay: &mut D,
         frames: &[Frame],
         duration_time: u16,
         forever_flag: bool,
         frames_number: u8,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+        D: DelayMs<u32>,
+    {
         let mut buf: [u8; 72] = [0; 72];
 
         let frames_number = if frames_number > 5 {
@@ -636,52 +686,88 @@ where
                 buf[2] = ((duration_time >> 8) & 0xff) as u8;
                 buf[3] = if forever_flag { 0 } else { 1 };
             }
-            self.i2c
-                .write(self.address, &buf[0..24])
+            i2c.write(self.address, &buf[0..24])
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
-            self.delay.delay_ms(10);
+            delay.delay_ms(10);
             let mut buf2: [u8; 25] = [0; 25];
             buf2[0] = I2cCmd::ContinueData as u8;
             buf2[1..(24 + 1)].copy_from_slice(&buf[24..(24 + 24)]);
-            self.i2c
-                .write(self.address, &buf2)
+            i2c.write(self.address, &buf2)
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
             let mut buf2: [u8; 25] = [0; 25];
             buf2[0] = I2cCmd::ContinueData as u8;
             buf2[1..(24 + 1)].copy_from_slice(&buf[48..(24 + 48)]);
-            self.i2c
-                .write(self.address, &buf2)
+            i2c.write(self.address, &buf2)
                 .map_err(|_| My9221LedMatrixError::I2CError)?;
         }
         Ok(())
     }
 
     /// Store frames to the internal buffer
-    pub fn store_frames(&mut self) -> Result<(), My9221LedMatrixError> {
-        self.i2c
-            .write(self.address, &[I2cCmd::StoreFlash as u8])
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `delay` - A delay provider
+    ///
+    pub fn store_frames<I2C, D>(
+        &self,
+        i2c: &mut I2C,
+        delay: &mut D,
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+        D: DelayMs<u32>,
+    {
+        i2c.write(self.address, &[I2cCmd::StoreFlash as u8])
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        self.delay.delay_ms(200);
+        delay.delay_ms(200);
         Ok(())
     }
 
     /// Delete frames from the internal buffer
-    pub fn delete_frames(&mut self) -> Result<(), My9221LedMatrixError> {
-        self.i2c
-            .write(self.address, &[I2cCmd::DeleteFlash as u8])
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `delay` - A delay provider
+    ///
+    pub fn delete_frames<I2C, D>(
+        &self,
+        i2c: &mut I2C,
+        delay: &mut D,
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+        D: DelayMs<u32>,
+    {
+        i2c.write(self.address, &[I2cCmd::DeleteFlash as u8])
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        self.delay.delay_ms(200);
+        delay.delay_ms(200);
         Ok(())
     }
 
     /// Display frames from the internal buffer
-    pub fn display_frames_from_flash(
-        &mut self,
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    /// * `duration_time` - The duration time of the bar
+    /// * `forever_flag` - If true, the bar will be displayed forever
+    /// * `from_idx` - The index of the first frame to display
+    /// * `to_idx` - The index of the last frame to display
+    ///
+    pub fn display_frames_from_flash<I2C>(
+        &self,
+        i2c: &mut I2C,
         duration_time: u16,
         forever_flag: bool,
         from_idx: u8,
         to_idx: u8,
-    ) -> Result<(), My9221LedMatrixError> {
+    ) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let from_idx = if from_idx > 5 {
             5
         } else if from_idx < 1 {
@@ -708,65 +794,90 @@ where
         buf[3] = if forever_flag { 0 } else { 1 };
         buf[4] = from_idx;
         buf[5] = to_idx;
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Enable test mode
-    pub fn enable_test_mode(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn enable_test_mode<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 1] = [0; 1];
 
         buf[0] = I2cCmd::TestTXRXOn as u8;
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Disable test mode
-    pub fn disable_test_mode(&mut self) -> Result<(), My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn disable_test_mode<I2C>(&self, i2c: &mut I2C) -> Result<(), My9221LedMatrixError>
+    where
+        I2C: Write,
+    {
         let mut buf: [u8; 1] = [0; 1];
 
         buf[0] = I2cCmd::TestTXRXOff as u8;
 
-        self.i2c
-            .write(self.address, &buf)
+        i2c.write(self.address, &buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
         Ok(())
     }
 
     /// Test getting the version
-    pub fn test_get_version(&mut self) -> Result<u32, My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn test_get_version<I2C>(&self, i2c: &mut I2C) -> Result<u32, My9221LedMatrixError>
+    where
+        I2C: Write + Read,
+    {
         let mut cmd: [u8; 1] = [0; 1];
         let mut buf: [u8; 4] = [0; 4];
 
         cmd[0] = I2cCmd::TestGetVersion as u8;
 
-        self.i2c
-            .write(self.address, &cmd)
+        i2c.write(self.address, &cmd)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        self.i2c
-            .read(self.address, &mut buf)
+        i2c.read(self.address, &mut buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
 
         Ok((buf[0] as u32) << 24 | (buf[1] as u32) << 16 | (buf[2] as u32) << 8 | (buf[3] as u32))
     }
 
     /// Get the device ID
-    pub fn get_device_id(&mut self) -> Result<u8, My9221LedMatrixError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `i2c` - The I2C peripheral to use
+    ///
+    pub fn get_device_id<I2C>(&self, i2c: &mut I2C) -> Result<u8, My9221LedMatrixError>
+    where
+        I2C: Write + Read,
+    {
         let mut cmd: [u8; 1] = [0; 1];
         let mut buf: [u8; 1] = [0; 1];
 
         cmd[0] = I2cCmd::GetDeviceUID as u8;
 
-        self.i2c
-            .write(self.address, &cmd)
+        i2c.write(self.address, &cmd)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
-        self.i2c
-            .read(self.address, &mut buf)
+        i2c.read(self.address, &mut buf)
             .map_err(|_| My9221LedMatrixError::I2CError)?;
 
         Ok(buf[0])
