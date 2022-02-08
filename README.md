@@ -14,4 +14,11 @@ cargo install cargo-embed
 cargo embed --chip STM32F303VCTx --release --example stm32f3-discovery-example --target thumbv7em-none-eabihf
 
 ```
-*This is an early stage project*
+
+## Example result
+
+A simple smiley:
+![Smiley fixed image](assets/Smiley.jpg)
+
+Picture changing:
+![Creepers](assets/Creepers.gif)
