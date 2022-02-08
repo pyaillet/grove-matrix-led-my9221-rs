@@ -24,8 +24,11 @@ mod delay {
     /// Default delay provided for std feature
     pub struct DelayThreadSleep;
 
-    impl DelayMs<T: Into<u32>> for DelayThreadSleep {
-        fn delay_ms(&mut self, ms: T) {
+    impl<UXX> DelayMs<UXX> for DelayThreadSleep
+    where
+        UXX: Into<u64>,
+    {
+        fn delay_ms(&mut self, ms: UXX) {
             thread::sleep(Duration::from_millis(ms.into()));
         }
     }
