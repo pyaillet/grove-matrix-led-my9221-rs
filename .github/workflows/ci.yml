@@ -60,5 +60,7 @@ jobs:
       - name: Security audit
         uses: actions-rs/audit-check@v1
         with:
+          # This vulnerability won't be triggered without std
+          args: --ignore RUSTSEC-2020-0071
           token: ${{ secrets.GITHUB_TOKEN }}
 
