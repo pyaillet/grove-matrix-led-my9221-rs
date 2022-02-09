@@ -23,6 +23,6 @@ path = "examples/stm32f3-discovery/"
 [dev-dependencies]
 cortex-m = "0.7.2"
 cortex-m-rt = "0.6.15"
-stm32f3-discovery = "0.7.2"
+stm32f3xx-hal = { version = "0.8.2", features = [ "stm32f303xc" ] }
 panic-itm = "0.4.2"
 
