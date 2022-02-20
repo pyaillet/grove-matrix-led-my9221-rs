@@ -1,3 +1,9 @@
+<p align="center">
+    <a href="https://github.com/pyaillet/grove-matrix-led-my9221-rs/actions/workflows/ci.yml"><img src="https://github.com/pyaillet/grove-matrix-led-my9221-rs/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build status" /></a>
+    <a href="https://crates.io/crates/grove-matrix-led-my9221"><img src="https://img.shields.io/crates/v/grove-matrix-led-my9221.svg" alt="Crates.io"></a>
+    <a href="https://docs.rs/grove-matrix-led-my9221"><img src="https://docs.rs/grove-matrix-led-my9221/badge.svg" alt="Docs.rs"></a>
+</p>
+
 # Grove RGB Matrix Led Rust Driver
 
 Rust driver for [Grove RGB Matrix Led with my-9221 Driver](https://wiki.seeedstudio.com/Grove-RGB_LED_Matrix_w-Driver/)
