@@ -3,9 +3,9 @@
 
 use core::convert::TryInto;
 
-use cortex_m_rt::entry;
+use stm32f3xx_hal::{self as hal, pac, prelude::*};
 
-use stm32f3_discovery::stm32f3xx_hal::{self as hal, pac, prelude::*};
+use cortex_m_rt::entry;
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

@@ -49,3 +49,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --no-default-features
 
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: Security audit
+        uses: actions-rs/audit-check@v1
+        with:
+          # This vulnerability won't be triggered without std
+          args: --ignore RUSTSEC-2020-0071
+          token: ${{ secrets.GITHUB_TOKEN }}
+
